@@ -113,8 +113,8 @@ def get_provider() -> LLMProvider:
 
 # --- tuning constants -----------------------------------------------------
 
-MAX_CONCURRENT_CALLS = 3
-KNOWLEDGE_PROBES = 3          # repeats of the factual question for consistency
+MAX_CONCURRENT_CALLS = 1          # Sequential calls only for free tier
+KNOWLEDGE_PROBES = 2              # Reduced from 3 to 2 (repeats of factual question)
 CONSISTENCY_KNOWN = 0.45     # >= this Jaccard similarity => consistent knowledge
 CONSISTENCY_UNKNOWN = 0.2    # <= this AND no discovery => not genuinely known
 # Below this, a brand the model *claims* to know is telling genuinely different
@@ -324,6 +324,9 @@ async def probe_knowledge(
 
     async def one_probe(n: int) -> Dict[str, Any]:
         async with semaphore:
+            # Add delay to avoid rate limiting
+            if n > 1:
+                await asyncio.sleep(config.RATE_LIMIT_DELAY)
             try:
                 text = await provider.generate(client, verdict_prompt)
             except httpx.HTTPError as exc:
@@ -420,25 +423,29 @@ def _decide_brand_known(
          divergence (rule 4), not to override a unanimous confident verdict.
       4. Model claims knowledge but facts genuinely diverge (very low
          consistency) => hallucinated.
-      5. Otherwise unknown.
+      5. Moderate organic discovery with no explicit unknown signals => likely known.
+      6. Otherwise unknown.
     """
     # 1. Recommended unprompted for category queries — demonstrably known.
     if unbranded_rate >= 0.34:
         return "known"
-    # 2. Explicitly disclaims knowledge.
-    if verdict_unknown_rate >= 0.5 or explicit_unknown_rate >= 0.6:
+    # 2. Explicitly disclaims knowledge (but only if we have valid responses).
+    if explicit_unknown_rate > 0.5 and verdict_unknown_rate >= 0.5:
         return "unknown"
     # 3. Confident self-assessment. A high 'known' rate is trusted unless the
     #    facts are wildly contradictory (handled next).
     if verdict_known_rate >= 0.6 and consistency >= CONSISTENCY_HALLUCINATED:
         return "known"
     # 4. Claims knowledge but facts genuinely diverge => hallucination.
-    if verdict_known_rate >= 0.34 and consistency < CONSISTENCY_HALLUCINATED:
+    if verdict_known_rate >= 0.34 and consistency < CONSISTENCY_HALLUCINATED and consistency > 0:
         return "hallucinated"
     # 5. Some 'known' signal with decent consistency but not strong enough.
     if verdict_known_rate >= 0.34 and consistency >= CONSISTENCY_KNOWN:
         return "known"
-    # 6. Weak/mixed signals.
+    # 6. NEW: Moderate unbranded rate suggests brand is known even if knowledge probes failed
+    if unbranded_rate >= 0.15:  # At least 1-2 out of 9 organic mentions
+        return "known"
+    # 7. Weak/mixed signals or all API calls failed
     return "unknown"
 
 
@@ -502,6 +509,8 @@ async def run_panel(
 
         async def discovery_run(prompt_text: str, n: int) -> Dict[str, Any]:
             async with semaphore:
+                # Add delay to avoid rate limiting
+                await asyncio.sleep(config.RATE_LIMIT_DELAY * 0.5)  # Half delay for discovery
                 try:
                     text = await provider.generate(client, prompt_text)
                     recommended = _brand_recommended(text, brand_name)

@@ -63,8 +63,8 @@ frontend/
 - Python 3.10+
 - Node.js 18+
 - A **Gemini API key** (required) - Get one at https://ai.google.dev/
-  - Note: The current model used is `gemini-3.8-flash` (as of October 2024)
-  - Older models like `gemini-2.0-flash` are no longer available
+  - **Model used**: `gemini-flash-lite-latest` (optimized for free tier)
+  - Free tier limits: ~15-20 requests/minute, limited daily quota
 - An **Exa.ai API key** (optional — retrieval degrades gracefully without it)
 
 ## Environment variables
@@ -203,20 +203,47 @@ future use but there is no history-browsing UI.
 
 ## Troubleshooting
 
+### Free Tier Usage (IMPORTANT)
+
+This project is optimized for **Gemini API free tier** with:
+- Model: `gemini-flash-lite-latest` (lighter, free-tier friendly)
+- Sequential API calls with 2-second delays
+- Reduced concurrent requests to avoid rate limits
+
+**Best Practices:**
+- Wait 10-15 seconds between audits
+- Each audit takes ~30 seconds
+- Can run 20-30 audits per hour safely
+- Monitor backend logs for 429 errors
+
 ### Rate Limiting (429 errors)
-If you see `429` errors in the logs, you've hit the Gemini API rate limit:
+
+If you see `429` errors in the logs:
 - **Free tier**: Has very low rate limits
-- **Solution**: Wait a few minutes and try again, or upgrade your API plan
+- **Solution**: Wait 5-10 minutes between audits, or upgrade your API plan at https://ai.google.dev/
 - The code automatically retries transient 429 errors with exponential backoff
 
 ### Model Not Found (404 errors)
+
 If you see `404 model not found` errors:
-- Check that `GEMINI_MODEL` in your environment matches an available model
-- Default is `gemini-3.8-flash` (as of October 2024)
-- Gemini models change over time; check https://ai.google.dev/ for current models
+- Default model is `gemini-flash-lite-latest` (free tier optimized)
+- Check your `backend/.env` if you changed the model
+- Available models change over time; check https://ai.google.dev/ for current models
 
 ### Audit Returns Low Scores
+
 If audits complete but show very low AI visibility scores:
 - Check the logs for API errors (look for `[ai]` prefixed messages)
 - Verify your `GEMINI_API_KEY` is valid
 - Ensure you have sufficient API quota remaining
+- Wait a few minutes if you hit rate limits
+
+### Quick Test
+
+Test if everything is working:
+```bash
+cd ai-brand-visibility-auditor
+./quick_test.sh "Starbucks" "https://www.starbucks.com"
+```
+
+Expected: Score 80-90/100, Status: known, 100% API success rate

@@ -24,12 +24,15 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 DB_PATH = os.getenv("GEO_AUDITOR_DB", os.path.join(PROJECT_ROOT, "geo_auditor.db"))
 
 # --- Model / tuning constants --------------------------------------------
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+# Using gemini-flash-lite-latest - optimized for free tier with lower quota usage
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 # Which LLM provider to use for AI-visibility testing. Provider-agnostic:
 # add "openai"/"claude" implementations in ai_query_simulator.PROVIDERS.
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")
-RUNS_PER_PROMPT = int(os.getenv("RUNS_PER_PROMPT", "3"))
+RUNS_PER_PROMPT = int(os.getenv("RUNS_PER_PROMPT", "2"))  # Reduced from 3 to 2 to avoid rate limits
 HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "15"))
+# Rate limiting settings - increased delays for free tier
+RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY", "2.0"))  # Increased to 2 seconds for free tier
 USER_AGENT = os.getenv(
     "GEO_AUDITOR_UA",
     "Mozilla/5.0 (compatible; GEOAuditorBot/1.0; +https://example.com/bot)",
