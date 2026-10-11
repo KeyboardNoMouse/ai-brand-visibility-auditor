@@ -60,24 +60,39 @@ class GeminiProvider:
         url = self._ENDPOINT.format(model=config.GEMINI_MODEL)
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         for attempt in range(self.MAX_RETRIES):
-            resp = await client.post(
-                url,
-                params={"key": config.GEMINI_API_KEY},
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            if resp.status_code in self.RETRYABLE_STATUS and attempt < self.MAX_RETRIES - 1:
-                backoff = 2 ** attempt
-                print(f"[ai] transient {resp.status_code}, retrying in {backoff}s")
-                await asyncio.sleep(backoff)
-                continue
-            resp.raise_for_status()
-            data = resp.json()
             try:
-                parts = data["candidates"][0]["content"]["parts"]
-                return "".join(p.get("text", "") for p in parts).strip()
-            except (KeyError, IndexError, TypeError):
-                return ""
+                resp = await client.post(
+                    url,
+                    params={"key": config.GEMINI_API_KEY},
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                )
+                if resp.status_code in self.RETRYABLE_STATUS and attempt < self.MAX_RETRIES - 1:
+                    backoff = 2 ** attempt
+                    print(f"[ai] transient {resp.status_code}, retrying in {backoff}s")
+                    await asyncio.sleep(backoff)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                try:
+                    parts = data["candidates"][0]["content"]["parts"]
+                    return "".join(p.get("text", "") for p in parts).strip()
+                except (KeyError, IndexError, TypeError) as e:
+                    print(f"[ai] unexpected response structure: {data}")
+                    return ""
+            except httpx.HTTPStatusError as e:
+                print(f"[ai] HTTP error {e.response.status_code}: {e.response.text[:200]}")
+                if e.response.status_code == 404:
+                    print(f"[ai] Model '{config.GEMINI_MODEL}' not found. Check GEMINI_MODEL in config.")
+                raise
+            except httpx.HTTPError as e:
+                print(f"[ai] Network error: {e}")
+                if attempt < self.MAX_RETRIES - 1:
+                    backoff = 2 ** attempt
+                    print(f"[ai] retrying in {backoff}s")
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
         # All retries exhausted on retryable status codes.
         return ""
 

@@ -24,7 +24,7 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 DB_PATH = os.getenv("GEO_AUDITOR_DB", os.path.join(PROJECT_ROOT, "geo_auditor.db"))
 
 # --- Model / tuning constants --------------------------------------------
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 # Which LLM provider to use for AI-visibility testing. Provider-agnostic:
 # add "openai"/"claude" implementations in ai_query_simulator.PROVIDERS.
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini")

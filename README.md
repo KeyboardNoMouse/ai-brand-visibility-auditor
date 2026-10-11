@@ -62,7 +62,9 @@ frontend/
 
 - Python 3.10+
 - Node.js 18+
-- A **Gemini API key** (required)
+- A **Gemini API key** (required) - Get one at https://ai.google.dev/
+  - Note: The current model used is `gemini-3.8-flash` (as of October 2024)
+  - Older models like `gemini-2.0-flash` are no longer available
 - An **Exa.ai API key** (optional — retrieval degrades gracefully without it)
 
 ## Environment variables
@@ -198,3 +200,23 @@ authentication, multiple AI providers, a job queue / background workers,
 PostgreSQL, competitor tracking, scheduled audits, CSV export, or a design
 system beyond Tailwind utilities. The `GET /audits` history endpoint exists for
 future use but there is no history-browsing UI.
+
+## Troubleshooting
+
+### Rate Limiting (429 errors)
+If you see `429` errors in the logs, you've hit the Gemini API rate limit:
+- **Free tier**: Has very low rate limits
+- **Solution**: Wait a few minutes and try again, or upgrade your API plan
+- The code automatically retries transient 429 errors with exponential backoff
+
+### Model Not Found (404 errors)
+If you see `404 model not found` errors:
+- Check that `GEMINI_MODEL` in your environment matches an available model
+- Default is `gemini-3.8-flash` (as of October 2024)
+- Gemini models change over time; check https://ai.google.dev/ for current models
+
+### Audit Returns Low Scores
+If audits complete but show very low AI visibility scores:
+- Check the logs for API errors (look for `[ai]` prefixed messages)
+- Verify your `GEMINI_API_KEY` is valid
+- Ensure you have sufficient API quota remaining
