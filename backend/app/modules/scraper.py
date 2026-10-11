@@ -120,7 +120,7 @@ def _schema_types(blocks: List[Dict[str, Any]]) -> List[str]:
 
 def parse_html(html: str, base_url: str) -> Dict[str, Any]:
     """Parse HTML into a dict of signals used by the analyzer modules."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, "lxml")
 
     # Title / meta description
     title = _text_or_none(soup.title)

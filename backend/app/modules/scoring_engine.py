@@ -5,9 +5,9 @@ of recommendations. Every recommendation is traceable to a specific stored
 result — no generic filler.
 
 Composite weights (documented as named constants):
-    access    25%
-    technical 30%
-    mention   30%
+    access    15%
+    technical 20%
+    mention   50%   — the dominant signal (AI visibility is what this tool measures)
     retrieval 15%  (redistributed when Exa is unavailable)
 
 Access sub-score weights bot categories differently: blocking a search/
@@ -71,7 +71,12 @@ def _mention_score(mention: Optional[Dict[str, Any]]) -> float:
     if brand_known == "unknown":
         return round(min(unbranded * 100.0, 8.0), 2)
     if brand_known == "hallucinated":
-        return round(min(unbranded * 100.0, 20.0), 2)
+        # Allow strong organic discovery (>67%) to partially override the
+        # hallucination cap. If the model recommends the brand in most organic
+        # queries, it demonstrably knows what the brand *is* even if its
+        # factual narrative is inconsistent (e.g. due to paraphrase variation).
+        cap = 45.0 if unbranded >= 0.67 else 20.0
+        return round(min(unbranded * 100.0, cap), 2)
 
     # brand_known == "known":
     # Base of 35 for being genuinely recognized, plus a steep reward for
@@ -226,7 +231,7 @@ def generate_recommendations(
             recs.append(_rec("technical", "medium",
                 f"Page has {h1} <h1> tags. Use exactly one <h1> and demote the rest to <h2>."))
 
-        if technical.get("alt_coverage", 1.0) < 0.80 and technical.get("word_count", 0) >= 0:
+        if technical.get("alt_coverage", 1.0) < 0.80 and technical.get("total_images", 0) > 0:
             recs.append(_rec("technical", "low",
                 f"Image alt-text coverage is {technical.get('alt_coverage', 0):.0%}. "
                 "Add descriptive alt text to reach >80% for accessibility and machine parsing."))

@@ -59,7 +59,6 @@ class GeminiProvider:
     async def generate(self, client: httpx.AsyncClient, prompt: str) -> str:
         url = self._ENDPOINT.format(model=config.GEMINI_MODEL)
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-        last_exc: Optional[httpx.HTTPError] = None
         for attempt in range(self.MAX_RETRIES):
             resp = await client.post(
                 url,
@@ -72,19 +71,14 @@ class GeminiProvider:
                 print(f"[ai] transient {resp.status_code}, retrying in {backoff}s")
                 await asyncio.sleep(backoff)
                 continue
-            try:
-                resp.raise_for_status()
-            except httpx.HTTPError as exc:
-                last_exc = exc
-                raise
+            resp.raise_for_status()
             data = resp.json()
             try:
                 parts = data["candidates"][0]["content"]["parts"]
                 return "".join(p.get("text", "") for p in parts).strip()
             except (KeyError, IndexError, TypeError):
                 return ""
-        if last_exc:
-            raise last_exc
+        # All retries exhausted on retryable status codes.
         return ""
 
 
@@ -110,9 +104,12 @@ CONSISTENCY_KNOWN = 0.45     # >= this Jaccard similarity => consistent knowledg
 CONSISTENCY_UNKNOWN = 0.2    # <= this AND no discovery => not genuinely known
 # Below this, a brand the model *claims* to know is telling genuinely different
 # stories each time (e.g. malware / YouTuber / APT group) => hallucination.
-# A confident, unanimous "known" verdict is trusted above this floor even if
-# short factual sentences vary in exact wording.
-CONSISTENCY_HALLUCINATED = 0.22
+# NOTE: This threshold must account for paraphrase variation — well-known brands
+# can produce semantically consistent but lexically diverse fact sentences (e.g.
+# "Stripe is a payment processing company" vs "Stripe provides online payment
+# infrastructure") with Jaccard as low as ~0.18. Set above the paraphrase
+# floor to avoid false positives.
+CONSISTENCY_HALLUCINATED = 0.30
 
 # Unbranded discoverability prompts (the real visibility signal). {category}
 # is filled with the inferred category. The brand name never appears here.
@@ -443,8 +440,9 @@ def _brand_recommended(response_text: str, brand_name: str) -> bool:
     brand = re.sub(r"[^a-z0-9]+", " ", brand_name.lower()).strip()
     if not brand:
         return False
-    # word-boundary style match on the normalized strings
-    return f" {brand} " in f" {hay} "
+    # Regex word-boundary match on the normalized strings — handles brand
+    # at the start/end of the response where the space-padding approach fails.
+    return bool(re.search(r'(?<![a-z0-9])' + re.escape(brand) + r'(?![a-z0-9])', hay))
 
 
 async def run_panel(
@@ -567,7 +565,8 @@ async def run_panel(
         "explicit_unknown_rate": knowledge["explicit_unknown_rate"],
         "branded_mention_rate": branded_knowledge_rate,
         "unbranded_mention_rate": unbranded_rate,
-        "overall_mention_rate": round((branded_knowledge_rate + unbranded_rate) / 2, 4),
+        "overall_mention_rate": round((branded_knowledge_rate + unbranded_rate) / 2, 4),  # deprecated alias
+        "composite_visibility_rate": round((branded_knowledge_rate + unbranded_rate) / 2, 4),
         "runs": all_runs,
         "per_prompt": per_prompt_list,
     }

@@ -22,9 +22,10 @@ def utcnow_iso() -> str:
 
 @contextmanager
 def get_conn() -> Iterator[sqlite3.Connection]:
-    """Yield a connection with row factory set and foreign keys enabled."""
-    conn = sqlite3.connect(config.DB_PATH)
+    """Yield a connection with row factory set, WAL mode, and foreign keys enabled."""
+    conn = sqlite3.connect(config.DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys = ON;")
     try:
         yield conn
@@ -249,7 +250,7 @@ def save_mention_summary(audit_id: str, data: Dict[str, Any]) -> None:
             "INSERT OR REPLACE INTO mention_summary "
             "(audit_id, category, brand_known, knowledge_consistency, "
             " explicit_unknown_rate, branded_mention_rate, unbranded_mention_rate, "
-            " overall_mention_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " composite_visibility_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 audit_id,
                 data.get("category"),
@@ -258,7 +259,7 @@ def save_mention_summary(audit_id: str, data: Dict[str, Any]) -> None:
                 data.get("explicit_unknown_rate"),
                 data.get("branded_mention_rate"),
                 data.get("unbranded_mention_rate"),
-                data.get("overall_mention_rate"),
+                data.get("composite_visibility_rate"),
             ),
         )
 

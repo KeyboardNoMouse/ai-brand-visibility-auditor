@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS audits (
 );
 
 CREATE TABLE IF NOT EXISTS access_results (
-    audit_id TEXT PRIMARY KEY REFERENCES audits(id),
+    audit_id TEXT PRIMARY KEY REFERENCES audits(id) ON DELETE CASCADE,
     robots_txt_found BOOLEAN,
     robots_txt_raw TEXT,
     llms_txt_found BOOLEAN,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS access_results (
 );
 
 CREATE TABLE IF NOT EXISTS technical_results (
-    audit_id TEXT PRIMARY KEY REFERENCES audits(id),
+    audit_id TEXT PRIMARY KEY REFERENCES audits(id) ON DELETE CASCADE,
     meta_description TEXT,
     has_schema_data BOOLEAN,
     schema_types_json TEXT,
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS technical_results (
 
 CREATE TABLE IF NOT EXISTS ai_prompt_runs (
     id TEXT PRIMARY KEY,
-    audit_id TEXT REFERENCES audits(id),
+    audit_id TEXT REFERENCES audits(id) ON DELETE CASCADE,
     prompt_text TEXT NOT NULL,
-    prompt_type TEXT NOT NULL,        -- branded | unbranded
+    prompt_type TEXT NOT NULL,        -- knowledge | unbranded
     run_number INTEGER NOT NULL,      -- which repeat (1..N)
     raw_response TEXT,
     brand_mentioned BOOLEAN,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS ai_prompt_runs (
 );
 
 CREATE TABLE IF NOT EXISTS retrieval_results (
-    audit_id TEXT PRIMARY KEY REFERENCES audits(id),
+    audit_id TEXT PRIMARY KEY REFERENCES audits(id) ON DELETE CASCADE,
     query_text TEXT,
     brand_url_retrieved BOOLEAN,
     retrieved_rank INTEGER,           -- null if not retrieved
@@ -54,19 +54,19 @@ CREATE TABLE IF NOT EXISTS retrieval_results (
 );
 
 CREATE TABLE IF NOT EXISTS mention_summary (
-    audit_id TEXT PRIMARY KEY REFERENCES audits(id),
+    audit_id TEXT PRIMARY KEY REFERENCES audits(id) ON DELETE CASCADE,
     category TEXT,
     brand_known TEXT,                 -- known | hallucinated | unknown
     knowledge_consistency REAL,
     explicit_unknown_rate REAL,
     branded_mention_rate REAL,        -- knowledge-derived (1.0/0.15/0.0)
     unbranded_mention_rate REAL,      -- organic discovery
-    overall_mention_rate REAL
+    composite_visibility_rate REAL    -- synthetic composite of knowledge + organic
 );
 
 CREATE TABLE IF NOT EXISTS recommendations (
     id TEXT PRIMARY KEY,
-    audit_id TEXT REFERENCES audits(id),
+    audit_id TEXT REFERENCES audits(id) ON DELETE CASCADE,
     category TEXT NOT NULL,           -- access | technical | mention | retrieval
     severity TEXT NOT NULL,           -- high | medium | low
     description TEXT NOT NULL

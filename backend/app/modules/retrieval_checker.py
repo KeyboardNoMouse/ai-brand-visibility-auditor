@@ -110,9 +110,19 @@ async def check_retrieval(
     print(f"[retrieval] querying Exa.ai across {len(queries)} queries (region={region or 'global'})")
     try:
         async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT_SECONDS * 2) as client:
-            per_query = await asyncio.gather(
-                *[_one_query(client, q, url) for q in queries]
+            raw_results = await asyncio.gather(
+                *[_one_query(client, q, url) for q in queries],
+                return_exceptions=True,
             )
+        # Filter out per-query failures, log them, and keep successful results.
+        per_query: List[Dict[str, Any]] = []
+        for i, result in enumerate(raw_results):
+            if isinstance(result, BaseException):
+                print(f"[retrieval] query '{queries[i]}' failed: {result}")
+            else:
+                per_query.append(result)
+        if not per_query:
+            raise httpx.HTTPError("All Exa queries failed")
     except httpx.HTTPError as exc:
         print(f"[retrieval] Exa call failed: {exc}")
         return {
